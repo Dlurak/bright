@@ -120,7 +120,7 @@ fn set_handler(args: SetArgs) -> Result<(), String> {
                 }
 
                 if kind == std::io::ErrorKind::PermissionDenied {
-                    buffer.push_str("Tipp: Set an udev rule or run with elevated priviliges");
+                    buffer.push_str("\nTipp: Set an udev rule or run with elevated priviliges");
                     return Err(buffer);
                 }
                 eprintln!("{buffer}");
