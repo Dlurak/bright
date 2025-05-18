@@ -1,5 +1,5 @@
-use crate::brightness::AbsoluteBrightness;
 use derive_more::Display;
+use errors::DeviceNotFound;
 use num_traits::Unsigned;
 use std::{cmp, collections::HashMap, fmt, path::PathBuf};
 
@@ -18,7 +18,8 @@ pub trait Device {
     fn current(&self) -> Result<Self::Number, errors::DeviceReadError>;
     fn set(
         &self,
-        value: Box<dyn AbsoluteBrightness<Number = Self::Number>>,
+        // value: Box<dyn AbsoluteBrightness<Number = Self::Number>>,
+        value: Self::Number,
     ) -> Result<Self::Number, errors::DeviceWriteError<Self::Number>>;
     fn path(&self) -> Option<PathBuf> {
         None
@@ -42,7 +43,7 @@ impl DeviceClass {
     }
 }
 
-pub fn all_lights() -> HashMap<DeviceClass, Vec<Box<dyn Device<Number = u16>>>> {
+pub fn all_devices() -> HashMap<DeviceClass, Vec<Box<dyn Device<Number = u16>>>> {
     let mut hm = HashMap::new();
 
     if let Some(backlights) = backlight::find_backlights() {
@@ -63,4 +64,29 @@ pub fn all_lights() -> HashMap<DeviceClass, Vec<Box<dyn Device<Number = u16>>>> 
     }
 
     hm
+}
+
+pub fn get_device<S: AsRef<str>>(
+    dev: Option<S>,
+) -> Result<Box<dyn Device<Number = u16>>, DeviceNotFound> {
+    let devices = all_devices();
+    #[allow(clippy::single_match_else)] // this is easier to read as a match
+    match dev {
+        Some(dev) => {
+            let dev = dev.as_ref();
+            let backlight = devices.into_values().flatten().find_map(|device| {
+                let name = device.name()?;
+                (name == dev).then_some(device)
+            });
+            backlight.ok_or(DeviceNotFound::NoNamed {
+                name: dev.to_string(),
+            })
+        }
+        None => {
+            let dev = devices
+                .into_values()
+                .find_map(|list| list.into_iter().next());
+            dev.ok_or(DeviceNotFound::NoFound)
+        }
+    }
 }

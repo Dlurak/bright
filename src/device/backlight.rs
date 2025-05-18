@@ -5,7 +5,6 @@ use super::{
     BRIGHTNESS_FILES, Device, DeviceClass,
     errors::{DeviceReadError, DeviceWriteError},
 };
-use crate::brightness::AbsoluteBrightness;
 use std::{
     fs::{self, OpenOptions},
     io::{self, Write},
@@ -68,13 +67,7 @@ impl Device for Backlight {
             .map_err(DeviceReadError::from)
     }
 
-    fn set(
-        &self,
-        value: Box<dyn AbsoluteBrightness<Number = Self::Number>>,
-    ) -> Result<Self::Number, DeviceWriteError<Self::Number>> {
-        let value = value
-            .absolute_brightness(self)
-            .ok_or(DeviceWriteError::NoValue)?;
+    fn set(&self, value: Self::Number) -> Result<Self::Number, DeviceWriteError<Self::Number>> {
         if value > self.max {
             return Err(DeviceWriteError::Overflow {
                 max: self.max,
@@ -89,9 +82,8 @@ impl Device for Backlight {
             .write(true)
             .open(path)?;
 
-        write!(file, "{value}")
-            .map(|_| value)
-            .map_err(DeviceWriteError::from)
+        write!(file, "{value}")?;
+        Ok(value)
     }
 
     fn path(&self) -> Option<PathBuf> {

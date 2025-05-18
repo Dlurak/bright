@@ -19,8 +19,8 @@
       formatter = forAllSystems (pkgs: pkgs.nixfmt-tree);
 
       packages = forAllSystems (pkgs: rec {
-        jiman = import ./nix/package.nix { inherit pkgs; };
-        default = jiman;
+        bright = import ./nix/package.nix { inherit pkgs; };
+        default = bright;
       });
 
       devShells = forAllSystems (pkgs: {

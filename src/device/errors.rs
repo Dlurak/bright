@@ -43,6 +43,12 @@ where
         #[source]
         io::Error,
     ),
-    #[error("no absolute value is clear")]
-    NoValue,
+}
+
+#[derive(Debug, Error)]
+pub enum DeviceNotFound {
+    #[error("no device named '{name}' available")]
+    NoNamed { name: String },
+    #[error("no device available")]
+    NoFound,
 }
