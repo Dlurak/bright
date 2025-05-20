@@ -15,7 +15,7 @@
           system: function nixpkgs.legacyPackages.${system}
         );
     in
-    {
+    rec {
       formatter = forAllSystems (pkgs: pkgs.nixfmt-tree);
 
       packages = forAllSystems (pkgs: rec {
@@ -36,5 +36,25 @@
           RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
         };
       });
+
+      overlays.default = final: prev: {
+        bright = import ./nix/package.nix { pkgs = final; };
+      };
+
+      nixosModules.default =
+        {
+          config,
+          lib,
+          pkgs,
+          ...
+        }:
+        {
+          options.programs.bright.enable = lib.mkEnableOption "Install bright and manage the udev rule";
+          config = lib.mkIf config.programs.bright.enable {
+            environment.systemPackages = [ pkgs.bright ];
+            services.udev.packages = [ pkgs.bright ];
+            nixpkgs.overlays = [ overlays.default ];
+          };
+        };
     };
 }

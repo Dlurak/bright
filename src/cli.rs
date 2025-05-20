@@ -1,4 +1,4 @@
-use crate::brightness::{BrightnessValue, brightness_parser};
+use crate::brightness::{BrightnessChange, brightness_parser};
 use clap::{Parser, Subcommand, value_parser};
 use std::{num::NonZero, time::Duration};
 
@@ -25,7 +25,7 @@ pub struct SetArgs {
     #[arg(long)]
     pub device: Option<String>,
     #[arg(value_parser = brightness_parser)]
-    pub brightness: BrightnessValue,
+    pub brightness: BrightnessChange,
     #[arg(short, long, group = "time")]
     pub duration: Option<humantime::Duration>,
     #[arg(short, long, alias = "change", group = "time")]

@@ -80,6 +80,8 @@ fn meta_handler(device_name: Option<String>) -> Result<(), String> {
 fn set_handler(args: SetArgs) -> Result<(), String> {
     let device = get_device(args.device.as_deref()).map_err(|err| err.to_string())?;
 
+    println!("Updating device: '{}'", device.name().unwrap_or("Unnamed"));
+
     let prev_brightness = device
         .current()
         .map_err(|err| format!("Reading current brightness: {err}"))?;
@@ -95,7 +97,6 @@ fn set_handler(args: SetArgs) -> Result<(), String> {
         return Ok(());
     };
 
-    println!("Updating device: '{}'", device.name().unwrap_or("Unnamed"));
     println!("Previously: {}", prev_brightness);
 
     let mut last_applied = None;
