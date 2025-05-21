@@ -86,18 +86,34 @@ fn set_handler(args: SetArgs) -> Result<(), String> {
         .current()
         .map_err(|err| format!("Reading current brightness: {err}"))?;
 
-    let desired_brightness = args
+    let min = args
+        .min
+        .absolute_brightness(&*device)
+        .ok_or_else(|| String::from("No absolute value is clear for the minimum brightness"))?;
+    let max = args
+        .max
+        .absolute_brightness(&*device)
+        .ok_or_else(|| String::from("No absolute value is clear for the maximum brightness"))?;
+
+    let original_brightness = args
         .brightness
         .absolute_brightness(&*device)
         .ok_or_else(|| String::from("No absolute value is clear"))?;
+    let desired_brightness = original_brightness.clamp(min, max);
 
-    let Some(difference) = NonZero::new(i32::from(desired_brightness) - i32::from(prev_brightness))
-    else {
+    if original_brightness < min {
+        println!("Desired brightness too low, applying minimum: {min}");
+    } else if original_brightness > max {
+        println!("Desired brightness too high, applying maximum: {max}");
+    }
+
+    let difference = i32::from(desired_brightness) - i32::from(prev_brightness);
+    let Some(difference) = NonZero::new(difference) else {
         println!("Already at the desired brightness of {desired_brightness}");
         return Ok(());
     };
 
-    println!("Previously: {}", prev_brightness);
+    println!("Previously: {prev_brightness}");
 
     let mut last_applied = None;
     let animation_values = AnimationIter::new(

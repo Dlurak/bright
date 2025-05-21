@@ -1,6 +1,7 @@
 use crate::device::Device;
+use derive_more::Display;
 use num_traits::Unsigned;
-use std::num::IntErrorKind;
+use std::{num::IntErrorKind, str::FromStr};
 
 const EMPTY_ERR_MSG: &str = "Number must not be empty";
 
@@ -18,9 +19,11 @@ pub struct BrightnessChange {
     direction: ChangeDirection,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Display)]
 pub enum Value {
+    #[display("{_0}")]
     Absolute(u16),
+    #[display("{_0}%")]
     Percentage(u8),
 }
 
@@ -71,58 +74,117 @@ impl AbsoluteBrightness for BrightnessChange {
     }
 }
 
-pub fn brightness_parser(unparsed: &str) -> Result<BrightnessChange, String> {
-    let mut unparsed_owned = String::from(unparsed);
-    let (mut unparsed, direction) = match unparsed_owned.pop() {
-        Some('+') => (unparsed_owned, ChangeDirection::Inc),
-        Some('-') => (unparsed_owned, ChangeDirection::Dec),
-        Some(_) => (String::from(unparsed), ChangeDirection::Abs),
-        None => return Err(String::from(EMPTY_ERR_MSG)),
-    };
+impl TryFrom<String> for Value {
+    type Error = String;
 
-    match unparsed.parse() {
-        Ok(num) => {
-            return Ok(BrightnessChange {
-                direction,
-                value: Value::Absolute(num),
+    fn try_from(mut value: String) -> Result<Self, Self::Error> {
+        match value.parse() {
+            Ok(num) => return Ok(Value::Absolute(num)),
+            Err(err) => match err.kind() {
+                IntErrorKind::NegOverflow | IntErrorKind::PosOverflow => {
+                    return Err(format!(
+                        "Your provided width doesn't fit into the integer (0-{})",
+                        u16::MAX
+                    ));
+                }
+                _ => {}
+            },
+        }
+
+        match value.pop() {
+            Some('%') => {}
+            Some(_) => return Err(String::from("Relative units must end with a '%'")),
+            None => return Err(String::from(EMPTY_ERR_MSG)),
+        }
+
+        value
+            .parse::<u8>()
+            .map_err(|err| {
+                let s = match err.kind() {
+                    IntErrorKind::NegOverflow => "The value must be at least 0%",
+                    IntErrorKind::Empty | IntErrorKind::InvalidDigit => "Please provide a number",
+                    IntErrorKind::PosOverflow => "The value must not exceed 100%",
+                    _ => todo!("This is a bug, please create a GitHub issue to report it!"),
+                };
+                String::from(s)
             })
-        }
-        Err(err) => match err.kind() {
-            IntErrorKind::NegOverflow | IntErrorKind::PosOverflow => {
-                return Err(format!(
-                    "Your provided width doesn't fit into the integer (0-{})",
-                    u16::MAX
-                ));
-            }
-            _ => {}
-        },
+            .and_then(|val| {
+                if val > 100 {
+                    Err(String::from("The value must not exceed 100%"))
+                } else {
+                    Ok(Value::Percentage(val))
+                }
+            })
     }
+}
 
-    match unparsed.pop() {
-        Some('%') => {}
-        Some(_) => return Err(String::from("Relative units must end with a '%'")),
-        None => unreachable!("We already remove empty ones above"),
+impl FromStr for Value {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.parse() {
+            Ok(num) => return Ok(Value::Absolute(num)),
+            Err(err) => match err.kind() {
+                IntErrorKind::NegOverflow | IntErrorKind::PosOverflow => {
+                    return Err(format!(
+                        "Your provided width doesn't fit into the integer (0-{})",
+                        u16::MAX
+                    ));
+                }
+                _ => {}
+            },
+        }
+
+        let mut s = String::from(s);
+        match s.pop() {
+            Some('%') => {}
+            Some(_) => return Err(String::from("Relative units must end with a '%'")),
+            None => return Err(String::from(EMPTY_ERR_MSG)),
+        }
+
+        s.parse::<u8>()
+            .map_err(|err| {
+                let s = match err.kind() {
+                    IntErrorKind::NegOverflow => "The value must be at least 0%",
+                    IntErrorKind::Empty | IntErrorKind::InvalidDigit => "Please provide a number",
+                    IntErrorKind::PosOverflow => "The value must not exceed 100%",
+                    _ => todo!("This is a bug, please create a GitHub issue to report it!"),
+                };
+                String::from(s)
+            })
+            .and_then(|val| {
+                if val > 100 {
+                    Err(String::from("The value must not exceed 100%"))
+                } else {
+                    Ok(Value::Percentage(val))
+                }
+            })
     }
+}
 
-    let value = match unparsed.parse::<u8>() {
-        Ok(value) => {
-            if value > 100 {
-                return Err(String::from("The value must not exceed 100%"));
-            } else {
-                Value::Percentage(value)
-            }
-        }
-        Err(err) => {
-            let msg = match err.kind() {
-                IntErrorKind::NegOverflow => "The value must be at least 0%",
-                IntErrorKind::Empty | IntErrorKind::InvalidDigit => "Please provide a number",
-                IntErrorKind::PosOverflow => "The value must not exceed 100%",
-                _ => todo!("This is a bug, please create a GitHub issue to report it!"),
-            };
-            return Err(msg.into());
-        }
-    };
-    Ok(BrightnessChange { value, direction })
+impl TryFrom<&str> for BrightnessChange {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let mut value_owned = String::from(value);
+        let (value, direction) = match value_owned.pop() {
+            Some('+') => (value_owned, ChangeDirection::Inc),
+            Some('-') => (value_owned, ChangeDirection::Dec),
+            Some(_) => (String::from(value), ChangeDirection::Abs),
+            None => return Err(String::from(EMPTY_ERR_MSG)),
+        };
+        let value = value.try_into()?;
+
+        Ok(BrightnessChange { value, direction })
+    }
+}
+
+impl FromStr for BrightnessChange {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_from(s)
+    }
 }
 
 #[cfg(test)]
@@ -132,30 +194,30 @@ mod tests {
     #[test]
     fn test_parsing() {
         assert_eq!(
-            brightness_parser("42%+"),
+            "42%+".try_into(),
             Ok(BrightnessChange {
                 direction: ChangeDirection::Inc,
                 value: Value::Percentage(42)
             })
         );
         assert_eq!(
-            brightness_parser("42-"),
+            "42-".try_into(),
             Ok(BrightnessChange {
                 direction: ChangeDirection::Dec,
                 value: Value::Absolute(42)
             })
         );
         assert_eq!(
-            brightness_parser("422"),
+            "422".try_into(),
             Ok(BrightnessChange {
                 direction: ChangeDirection::Abs,
                 value: Value::Absolute(422)
             })
         );
-        assert!(brightness_parser("42++").is_err());
-        assert!(brightness_parser("-42").is_err());
-        assert!(brightness_parser("-1%").is_err());
-        assert!(brightness_parser("101%").is_err());
-        assert!(brightness_parser("100%").is_ok());
+        assert!(BrightnessChange::try_from("42++").is_err());
+        assert!(BrightnessChange::try_from("-42").is_err());
+        assert!(BrightnessChange::try_from("-1%").is_err());
+        assert!(BrightnessChange::try_from("101%").is_err());
+        assert!(BrightnessChange::try_from("100%").is_ok());
     }
 }
