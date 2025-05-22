@@ -9,6 +9,8 @@ pub mod led;
 
 pub const BRIGHTNESS_FILES: [&str; 2] = ["brightness", "max_brightness"];
 
+pub const UNNAMED: &str = "unnamed";
+
 pub trait Device {
     type Number: Unsigned + cmp::Ord + fmt::Display;
 
@@ -78,7 +80,7 @@ pub fn get_device<S: AsRef<str>>(
                 let name = device.name()?;
                 (name == dev).then_some(device)
             });
-            backlight.ok_or(DeviceNotFound::NoNamed {
+            backlight.ok_or_else(|| DeviceNotFound::NoNamed {
                 name: dev.to_string(),
             })
         }

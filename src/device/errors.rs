@@ -24,8 +24,8 @@ impl std::fmt::Display for DeviceReadError {
             Self::Parse(_) => "parse",
         };
         match self.source() {
-            Some(source) => write!(f, "Can't {verb} the brightness ({source})"),
-            None => write!(f, "Can't {verb} the brightness"),
+            Some(source) => write!(f, "can't {verb} the brightness ({source})"),
+            None => write!(f, "can't {verb} the brightness"),
         }
     }
 }

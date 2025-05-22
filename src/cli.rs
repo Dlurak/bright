@@ -1,4 +1,4 @@
-use crate::brightness::{BrightnessChange, Value};
+use crate::brightness::Value;
 use clap::{Parser, Subcommand, value_parser};
 use std::{num::NonZero, time::Duration};
 
@@ -22,10 +22,10 @@ pub enum Command {
 
 #[derive(Parser, Clone)]
 pub struct SetArgs {
+    #[arg()]
+    pub brightness: crate::restoration::SetValue,
     #[arg(long)]
     pub device: Option<String>,
-    #[arg()]
-    pub brightness: BrightnessChange,
     #[arg(short, long, group = "time")]
     pub duration: Option<humantime::Duration>,
     #[arg(short, long, alias = "change", group = "time")]
@@ -41,6 +41,8 @@ pub struct SetArgs {
     pub min: Value,
     #[arg(long, default_value_t = Value::Percentage(100))]
     pub max: Value,
+    #[arg(long, default_value_t = false)]
+    pub save: bool,
 }
 
 impl SetArgs {

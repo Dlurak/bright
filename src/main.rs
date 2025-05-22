@@ -2,7 +2,8 @@ use bright::{
     animation::AnimationIter,
     brightness::AbsoluteBrightness,
     cli::{Args, Command, SetArgs},
-    device::{all_devices, errors::DeviceWriteError, get_device},
+    device::{UNNAMED, all_devices, errors::DeviceWriteError, get_device},
+    restoration::write_brightness,
 };
 use clap::Parser;
 use std::{
@@ -34,7 +35,7 @@ fn list_handler() {
             let cur = device.current().ok();
             let max = device.max();
 
-            let name = device.name().unwrap_or("Unnamed");
+            let name = device.name().unwrap_or(UNNAMED);
             print!("\t{name}");
 
             if let Some(path) = device.path() {
@@ -79,26 +80,33 @@ fn meta_handler(device_name: Option<String>) -> Result<(), String> {
 
 fn set_handler(args: SetArgs) -> Result<(), String> {
     let device = get_device(args.device.as_deref()).map_err(|err| err.to_string())?;
+    let name = device.name().unwrap_or(UNNAMED);
 
-    println!("Updating device: '{}'", device.name().unwrap_or("Unnamed"));
+    println!("Updating device: '{name}'");
 
     let prev_brightness = device
         .current()
         .map_err(|err| format!("Reading current brightness: {err}"))?;
 
-    let min = args
-        .min
-        .absolute_brightness(&*device)
-        .ok_or_else(|| String::from("No absolute value is clear for the minimum brightness"))?;
-    let max = args
-        .max
-        .absolute_brightness(&*device)
-        .ok_or_else(|| String::from("No absolute value is clear for the maximum brightness"))?;
+    if args.save {
+        let path = write_brightness(name, prev_brightness).map_err(|err| err.to_string())?;
+        println!(
+            "Wrote previous brightness of {prev_brightness} to {}",
+            path.display()
+        )
+    }
+
+    let min = args.min.absolute_brightness(&*device).map_err(|err| {
+        format!("While tetermening the minimum brightness encountered an error: {err}")
+    })?;
+    let max = args.max.absolute_brightness(&*device).map_err(|err| {
+        format!("While determening the maximum brightness encountered an error: {err}")
+    })?;
 
     let original_brightness = args
         .brightness
         .absolute_brightness(&*device)
-        .ok_or_else(|| String::from("No absolute value is clear"))?;
+        .map_err(|err| format!("While determening the brightness encountered an error: {err}"))?;
     let desired_brightness = original_brightness.clamp(min, max);
 
     if original_brightness < min {

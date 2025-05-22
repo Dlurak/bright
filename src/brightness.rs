@@ -1,7 +1,8 @@
-use crate::device::Device;
+use crate::device::{Device, errors::DeviceReadError};
 use derive_more::Display;
 use num_traits::Unsigned;
-use std::{num::IntErrorKind, str::FromStr};
+use std::{error::Error as StdError, fmt, num::IntErrorKind, path::PathBuf, str::FromStr};
+use thiserror::Error;
 
 const EMPTY_ERR_MSG: &str = "Number must not be empty";
 
@@ -10,13 +11,46 @@ pub trait AbsoluteBrightness {
     fn absolute_brightness(
         &self,
         device: &dyn Device<Number = Self::Number>,
-    ) -> Option<Self::Number>;
+    ) -> Result<Self::Number, AbsoluteBrightnessError>;
+}
+
+#[derive(Debug, Error)]
+pub enum AbsoluteBrightnessError {
+    #[error("maximum brightness for device could not be determined")]
+    NoMax,
+    // TODO: Are these 2 error attributes really needed
+    #[error("{_0}")]
+    CurrentRead(DeviceReadError),
+    #[error("{_0}")]
+    Other(Box<dyn StdError>),
+    #[error("the file {} doesn't exist", _0.display())]
+    MissingFile(PathBuf),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BrightnessChange {
     value: Value,
     direction: ChangeDirection,
+}
+
+impl Default for BrightnessChange {
+    fn default() -> Self {
+        Self {
+            value: Value::Absolute(0),
+            direction: ChangeDirection::Inc,
+        }
+    }
+}
+
+impl fmt::Display for BrightnessChange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let change = match self.direction {
+            ChangeDirection::Inc => "+",
+            ChangeDirection::Dec => "-",
+            ChangeDirection::Abs => "",
+        };
+        write!(f, "{}{change}", self.value)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Display)]
@@ -39,14 +73,14 @@ impl AbsoluteBrightness for Value {
     fn absolute_brightness(
         &self,
         device: &dyn Device<Number = Self::Number>,
-    ) -> Option<Self::Number> {
+    ) -> Result<Self::Number, AbsoluteBrightnessError> {
         match self {
-            Self::Absolute(a) => Some(*a),
+            Self::Absolute(a) => Ok(*a),
             Self::Percentage(p) => {
-                let max = device.max()?;
+                let max = device.max().ok_or(AbsoluteBrightnessError::NoMax)?;
                 let factor = f64::from(*p) / 100.0;
                 let f = f64::from(max) * factor;
-                Some(f as u16)
+                Ok(f as u16)
             }
         }
     }
@@ -57,18 +91,22 @@ impl AbsoluteBrightness for BrightnessChange {
     fn absolute_brightness(
         &self,
         device: &dyn Device<Number = Self::Number>,
-    ) -> Option<Self::Number> {
+    ) -> Result<Self::Number, AbsoluteBrightnessError> {
         let absolute = self.value.absolute_brightness(device)?;
         match self.direction {
-            ChangeDirection::Abs => Some(absolute),
+            ChangeDirection::Abs => Ok(absolute),
             ChangeDirection::Dec => {
-                let current = device.current().ok()?;
-                Some(current.saturating_sub(absolute))
+                let current = device
+                    .current()
+                    .map_err(AbsoluteBrightnessError::CurrentRead)?;
+                Ok(current.saturating_sub(absolute))
             }
             ChangeDirection::Inc => {
-                let current = device.current().ok()?;
-                let max = device.max()?;
-                Some(current.saturating_add(absolute).min(max))
+                let current = device
+                    .current()
+                    .map_err(AbsoluteBrightnessError::CurrentRead)?;
+                let max = device.max().ok_or(AbsoluteBrightnessError::NoMax)?;
+                Ok(current.saturating_add(absolute).min(max))
             }
         }
     }
@@ -79,7 +117,7 @@ impl TryFrom<String> for Value {
 
     fn try_from(mut value: String) -> Result<Self, Self::Error> {
         match value.parse() {
-            Ok(num) => return Ok(Value::Absolute(num)),
+            Ok(num) => return Ok(Self::Absolute(num)),
             Err(err) => match err.kind() {
                 IntErrorKind::NegOverflow | IntErrorKind::PosOverflow => {
                     return Err(format!(
@@ -112,7 +150,7 @@ impl TryFrom<String> for Value {
                 if val > 100 {
                     Err(String::from("The value must not exceed 100%"))
                 } else {
-                    Ok(Value::Percentage(val))
+                    Ok(Self::Percentage(val))
                 }
             })
     }
@@ -123,7 +161,7 @@ impl FromStr for Value {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.parse() {
-            Ok(num) => return Ok(Value::Absolute(num)),
+            Ok(num) => return Ok(Self::Absolute(num)),
             Err(err) => match err.kind() {
                 IntErrorKind::NegOverflow | IntErrorKind::PosOverflow => {
                     return Err(format!(
@@ -156,7 +194,7 @@ impl FromStr for Value {
                 if val > 100 {
                     Err(String::from("The value must not exceed 100%"))
                 } else {
-                    Ok(Value::Percentage(val))
+                    Ok(Self::Percentage(val))
                 }
             })
     }
@@ -175,7 +213,7 @@ impl TryFrom<&str> for BrightnessChange {
         };
         let value = value.try_into()?;
 
-        Ok(BrightnessChange { value, direction })
+        Ok(Self { value, direction })
     }
 }
 
