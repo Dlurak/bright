@@ -1,7 +1,7 @@
 use derive_more::Display;
 use errors::DeviceNotFound;
 use num_traits::Unsigned;
-use std::{cmp, collections::HashMap, fmt, path::PathBuf};
+use std::{cmp, collections::BTreeMap, env, fmt, path::PathBuf};
 
 pub mod backlight;
 pub mod errors;
@@ -20,7 +20,6 @@ pub trait Device {
     fn current(&self) -> Result<Self::Number, errors::DeviceReadError>;
     fn set(
         &self,
-        // value: Box<dyn AbsoluteBrightness<Number = Self::Number>>,
         value: Self::Number,
     ) -> Result<Self::Number, errors::DeviceWriteError<Self::Number>>;
     fn path(&self) -> Option<PathBuf> {
@@ -28,7 +27,7 @@ pub trait Device {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Display)]
+#[derive(PartialEq, Eq, Hash, Display, PartialOrd, Ord)]
 pub enum DeviceClass {
     #[display("Backlight")]
     Backlight,
@@ -45,8 +44,8 @@ impl DeviceClass {
     }
 }
 
-pub fn all_devices() -> HashMap<DeviceClass, Vec<Box<dyn Device<Number = u16>>>> {
-    let mut hm = HashMap::new();
+pub fn all_devices() -> BTreeMap<DeviceClass, Vec<Box<dyn Device<Number = u16>>>> {
+    let mut map = BTreeMap::new();
 
     if let Some(backlights) = backlight::find_backlights() {
         let mapped = backlights
@@ -54,7 +53,7 @@ pub fn all_devices() -> HashMap<DeviceClass, Vec<Box<dyn Device<Number = u16>>>>
             .map(|bl| Box::new(bl) as Box<dyn Device<Number = u16>>)
             .collect();
 
-        hm.insert(backlight::Backlight::CLASS, mapped);
+        map.insert(backlight::Backlight::CLASS, mapped);
     }
     if let Some(leds) = led::find_leds() {
         let mapped = leds
@@ -62,27 +61,28 @@ pub fn all_devices() -> HashMap<DeviceClass, Vec<Box<dyn Device<Number = u16>>>>
             .map(|bl| Box::new(bl) as Box<dyn Device<Number = u16>>)
             .collect();
 
-        hm.insert(led::Led::CLASS, mapped);
+        map.insert(led::Led::CLASS, mapped);
     }
 
-    hm
+    map
 }
 
 pub fn get_device<S: AsRef<str>>(
     dev: Option<S>,
 ) -> Result<Box<dyn Device<Number = u16>>, DeviceNotFound> {
     let devices = all_devices();
-    #[allow(clippy::single_match_else)] // this is easier to read as a match
+
+    let dev = dev
+        .map(|d| d.as_ref().to_string())
+        .or_else(|| env::var("BRIGHT_DEVICE").ok());
+
     match dev {
         Some(dev) => {
-            let dev = dev.as_ref();
             let backlight = devices.into_values().flatten().find_map(|device| {
                 let name = device.name()?;
                 (name == dev).then_some(device)
             });
-            backlight.ok_or_else(|| DeviceNotFound::NoNamed {
-                name: dev.to_string(),
-            })
+            backlight.ok_or_else(|| DeviceNotFound::NoNamed { name: dev })
         }
         None => {
             let dev = devices

@@ -142,7 +142,7 @@ impl TryFrom<String> for Value {
                     IntErrorKind::NegOverflow => "The value must be at least 0%",
                     IntErrorKind::Empty | IntErrorKind::InvalidDigit => "Please provide a number",
                     IntErrorKind::PosOverflow => "The value must not exceed 100%",
-                    _ => todo!("This is a bug, please create a GitHub issue to report it!"),
+                    _ => unreachable!("This is a bug, please create a GitHub issue to report it!"),
                 };
                 String::from(s)
             })
@@ -186,7 +186,7 @@ impl FromStr for Value {
                     IntErrorKind::NegOverflow => "The value must be at least 0%",
                     IntErrorKind::Empty | IntErrorKind::InvalidDigit => "Please provide a number",
                     IntErrorKind::PosOverflow => "The value must not exceed 100%",
-                    _ => todo!("This is a bug, please create a GitHub issue to report it!"),
+                    _ => unreachable!("This is a bug, please create a GitHub issue to report it!"),
                 };
                 String::from(s)
             })
