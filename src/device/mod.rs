@@ -3,6 +3,8 @@ use errors::DeviceNotFound;
 use num_traits::Unsigned;
 use std::{cmp, collections::BTreeMap, env, fmt, path::PathBuf};
 
+use crate::meta::Meta;
+
 pub mod backlight;
 pub mod errors;
 pub mod led;
@@ -11,7 +13,7 @@ pub const BRIGHTNESS_FILES: [&str; 2] = ["brightness", "max_brightness"];
 
 pub const UNNAMED: &str = "unnamed";
 
-pub trait Device {
+pub trait Device: Meta {
     type Number: Unsigned + cmp::Ord + fmt::Display;
 
     fn name(&self) -> Option<&str>;
@@ -82,7 +84,7 @@ pub fn get_device<S: AsRef<str>>(
                 let name = device.name()?;
                 (name == dev).then_some(device)
             });
-            backlight.ok_or_else(|| DeviceNotFound::NoNamed { name: dev })
+            backlight.ok_or(DeviceNotFound::NoNamed { name: dev })
         }
         None => {
             let dev = devices

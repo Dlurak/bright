@@ -1,3 +1,9 @@
+use crate::{
+    device::UNNAMED,
+    fmt_option,
+    meta::{Information, Meta},
+};
+
 use super::{
     BRIGHTNESS_FILES, Device, DeviceClass,
     errors::{DeviceReadError, DeviceWriteError},
@@ -5,6 +11,7 @@ use super::{
 use std::{
     fs::{self, OpenOptions},
     io::{self, Write},
+    marker::PhantomData,
     path::{Path, PathBuf},
 };
 use thiserror::Error;
@@ -23,15 +30,17 @@ pub fn find_leds() -> Option<Vec<Led>> {
 
 #[derive(Debug)]
 pub struct Led {
-    path: PathBuf,
-    max: u16,
+    pub dev_path: PathBuf,
+    pub max: u16,
+    /// This (private) field makes it unconstructable outside of this module
+    _hidden: PhantomData<()>,
 }
 
 impl Device for Led {
     type Number = u16;
 
     fn name(&self) -> Option<&str> {
-        self.path.file_name()?.to_str()
+        self.dev_path.file_name()?.to_str()
     }
 
     fn max(&self) -> Option<Self::Number> {
@@ -39,7 +48,7 @@ impl Device for Led {
     }
 
     fn current(&self) -> Result<Self::Number, DeviceReadError> {
-        let path = self.path.join("brightness");
+        let path = self.dev_path.join("brightness");
         fs::read_to_string(path)?
             .trim_end()
             .parse()
@@ -54,7 +63,7 @@ impl Device for Led {
             });
         }
 
-        let path = self.path.join("brightness");
+        let path = self.dev_path.join("brightness");
         let mut file = OpenOptions::new()
             .read(false)
             .create(false)
@@ -66,7 +75,29 @@ impl Device for Led {
     }
 
     fn path(&self) -> Option<PathBuf> {
-        Some(self.path.clone())
+        Some(self.dev_path.clone())
+    }
+}
+
+impl Meta for Led {
+    fn meta(&self) -> Vec<Information> {
+        let cur = self.current().ok();
+        let max = self.max;
+        let perc = cur.map(|cur| f64::from(cur) / f64::from(max) * 100.0);
+
+        vec![
+            Information::new(
+                "Device".to_string(),
+                self.name().unwrap_or(UNNAMED).to_string(),
+                Some(self.dev_path.display().to_string()),
+            ),
+            Information::new(
+                "Current brightness".to_string(),
+                fmt_option(cur, '?'),
+                perc.map(|p| format!("{p}%")),
+            ),
+            Information::new("Max brightness".to_string(), max.to_string(), None),
+        ]
     }
 }
 
@@ -86,15 +117,31 @@ impl Led {
             .count();
 
         if relevant_files_count == BRIGHTNESS_FILES.len() {
-            let max = fs::read_to_string(path.join("max_brightness"))
-                .map_err(DeviceReadError::from)
-                .and_then(|max| max.trim_end().parse().map_err(DeviceReadError::from))?;
-            Ok(Self { path, max })
+            let content =
+                fs::read_to_string(path.join("max_brightness")).map_err(DeviceReadError::from)?;
+            let max = content.trim_end().parse().map_err(DeviceReadError::from)?;
+            Ok(Self {
+                dev_path: path,
+                max,
+                _hidden: PhantomData,
+            })
         } else {
             Err(NewLedError::NotEnoughFiles {
                 relevant_files_count,
             })
         }
+    }
+
+    /// # Safety
+    /// Missing check that all required files for a LED-Device are present
+    pub unsafe fn new_unchecked(path: PathBuf) -> Result<Self, DeviceReadError> {
+        let content = fs::read_to_string(path.join("max_brightness"))?;
+        let max = content.trim_end().parse()?;
+        Ok(Self {
+            dev_path: path,
+            max,
+            _hidden: PhantomData,
+        })
     }
 }
 

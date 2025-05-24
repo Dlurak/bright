@@ -3,13 +3,11 @@ use bright::{
     brightness::AbsoluteBrightness,
     cli::{Args, Command, SetArgs},
     device::{UNNAMED, all_devices, errors::DeviceWriteError, get_device},
+    fmt_option,
     restoration::write_brightness,
 };
 use clap::Parser;
-use std::{
-    fmt::{Display, Write},
-    num::NonZero,
-};
+use std::{fmt::Write, num::NonZero};
 
 fn main() {
     let args = Args::parse();
@@ -57,24 +55,11 @@ fn list_handler() {
 
 fn meta_handler(device_name: Option<String>) -> Result<(), String> {
     let device = get_device(device_name).map_err(|err| err.to_string())?;
-    match (device.name(), device.path()) {
-        (Some(name), Some(path)) => println!("Device: '{name}': {}", path.display()),
-        (Some(name), None) => println!("Device: '{name}'"),
-        (None, Some(path)) => println!("Device: {}", path.display()),
-        (None, None) => println!("Device: unknown"),
-    }
-    let cur = device.current().ok();
-    let max = device.max();
-    let perc = cur
-        .zip(max)
-        .map(|(cur, max)| f64::from(cur) / f64::from(max) * 100.0);
 
-    println!(
-        "Current Brightness: {} ({}%)",
-        fmt_option(cur, '?'),
-        fmt_option(perc, '?')
-    );
-    println!("Max Brightness: {}", fmt_option(max, '?'));
+    for info in device.meta() {
+        println!("{info}");
+    }
+
     Ok(())
 }
 
@@ -165,12 +150,4 @@ fn set_handler(args: SetArgs) -> Result<(), String> {
     let actual_brightness = last_applied.unwrap_or(prev_brightness);
     println!("Finished: {actual_brightness}");
     Ok(())
-}
-
-fn fmt_option<O, D>(opt: Option<O>, default: D) -> String
-where
-    O: Display,
-    D: Display,
-{
-    opt.map_or_else(|| default.to_string(), |n| n.to_string())
 }

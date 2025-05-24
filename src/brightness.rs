@@ -1,7 +1,7 @@
 use crate::device::{Device, errors::DeviceReadError};
 use derive_more::Display;
 use num_traits::Unsigned;
-use std::{error::Error as StdError, fmt, num::IntErrorKind, path::PathBuf, str::FromStr};
+use std::{error, fmt, num::IntErrorKind, path::PathBuf, str::FromStr};
 use thiserror::Error;
 
 const EMPTY_ERR_MSG: &str = "Number must not be empty";
@@ -22,7 +22,7 @@ pub enum AbsoluteBrightnessError {
     #[error("{_0}")]
     CurrentRead(DeviceReadError),
     #[error("{_0}")]
-    Other(Box<dyn StdError>),
+    Other(Box<dyn error::Error>),
     #[error("the file {} doesn't exist", _0.display())]
     MissingFile(PathBuf),
 }
