@@ -1,4 +1,4 @@
-use crate::brightness::Value;
+use crate::{animation::easing::EasingKind, brightness::Value};
 use clap::{Parser, Subcommand, value_parser};
 use std::{num::NonZero, time::Duration};
 
@@ -6,6 +6,8 @@ use std::{num::NonZero, time::Duration};
 pub struct Args {
     #[command(subcommand)]
     pub command: Command,
+    #[arg(long, default_value_t = EasingKind::default())]
+    pub easing: EasingKind,
 }
 
 #[derive(Subcommand, Clone)]
@@ -28,8 +30,6 @@ pub struct SetArgs {
     pub device: Option<String>,
     #[arg(short, long, group = "time")]
     pub duration: Option<humantime::Duration>,
-    #[arg(short, long, alias = "change", group = "time")]
-    pub change_per_second: Option<NonZero<u16>>,
     #[arg(
         long,
         requires = "time",
@@ -39,7 +39,7 @@ pub struct SetArgs {
     pub fps: u16,
     #[arg(long, default_value_t = Value::Absolute(0))]
     pub min: Value,
-    #[arg(long, default_value_t = Value::Percentage(100))]
+    #[arg(long, default_value_t = Value::Percentage(100.0))]
     pub max: Value,
     #[arg(long, default_value_t = false)]
     pub save: bool,
@@ -50,32 +50,10 @@ impl SetArgs {
         Duration::from_millis(1000 / u64::from(self.fps))
     }
 
-    pub fn change_per_frame(&self, diff: NonZero<i32>) -> Result<NonZero<i32>, String> {
-        if self.change_per_second.is_some_and(|ch| ch.get() < self.fps) {
-            return Err(String::from(
-                "Change per second must be at least equal to fps, try changing these values",
-            ));
-        }
-        let change_from_change = self
-            .change_per_second
-            .map(|change_per_sec| change_per_sec.get() / self.fps);
-        let change_from_duration = self.duration.map(|dur| {
-            let frame_count = (dur.as_millis() / self.frame_duration().as_millis()).max(1) as u16;
-            diff.unsigned_abs().get() as u16 / frame_count
-        });
-
-        let change = change_from_change
-            .or(change_from_duration)
-            .unwrap_or_else(|| {
-                diff.unsigned_abs()
-                    .get()
-                    .try_into()
-                    .expect("i32 -> u16 is save when it is unsigned")
-            });
-
-        let sign = if diff.is_positive() { 1 } else { -1 };
-        // Safety: a != 0 <=> a/b != 0 and diff != 0
-        let signed = unsafe { NonZero::new_unchecked(i32::from(change) * sign) };
-        Ok(signed)
+    pub fn frames(&self) -> NonZero<usize> {
+        self.duration
+            .map(|dur| (dur.as_millis() / self.frame_duration().as_millis()).max(1) as usize)
+            .and_then(NonZero::new)
+            .unwrap_or(NonZero::new(1).unwrap())
     }
 }

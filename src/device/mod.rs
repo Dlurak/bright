@@ -1,9 +1,8 @@
+use crate::meta::Meta;
 use derive_more::Display;
 use errors::DeviceNotFound;
 use num_traits::Unsigned;
 use std::{cmp, collections::BTreeMap, env, fmt, path::PathBuf};
-
-use crate::meta::Meta;
 
 pub mod backlight;
 pub mod errors;

@@ -1,4 +1,7 @@
-use crate::device::{Device, errors::DeviceReadError};
+use crate::{
+    animation::easing::Easing,
+    device::{Device, errors::DeviceReadError},
+};
 use derive_more::Display;
 use num_traits::Unsigned;
 use std::{error, fmt, num::IntErrorKind, path::PathBuf, str::FromStr};
@@ -11,6 +14,7 @@ pub trait AbsoluteBrightness {
     fn absolute_brightness(
         &self,
         device: &dyn Device<Number = Self::Number>,
+        easing: &dyn Easing,
     ) -> Result<Self::Number, AbsoluteBrightnessError>;
 }
 
@@ -27,7 +31,7 @@ pub enum AbsoluteBrightnessError {
     MissingFile(PathBuf),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BrightnessChange {
     value: Value,
     direction: ChangeDirection,
@@ -53,15 +57,15 @@ impl fmt::Display for BrightnessChange {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Display)]
+#[derive(Clone, Copy, Debug, PartialEq, Display)]
 pub enum Value {
     #[display("{_0}")]
     Absolute(u16),
     #[display("{_0}%")]
-    Percentage(u8),
+    Percentage(f64),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChangeDirection {
     Dec,
     Abs,
@@ -73,12 +77,13 @@ impl AbsoluteBrightness for Value {
     fn absolute_brightness(
         &self,
         device: &dyn Device<Number = Self::Number>,
+        easing: &dyn Easing,
     ) -> Result<Self::Number, AbsoluteBrightnessError> {
         match self {
             Self::Absolute(a) => Ok(*a),
             Self::Percentage(p) => {
                 let max = device.max().ok_or(AbsoluteBrightnessError::NoMax)?;
-                let factor = f64::from(*p) / 100.0;
+                let factor = easing.to_actual(p / 100.0);
                 let f = f64::from(max) * factor;
                 Ok(f as u16)
             }
@@ -91,22 +96,36 @@ impl AbsoluteBrightness for BrightnessChange {
     fn absolute_brightness(
         &self,
         device: &dyn Device<Number = Self::Number>,
+        easing: &dyn Easing,
     ) -> Result<Self::Number, AbsoluteBrightnessError> {
-        let absolute = self.value.absolute_brightness(device)?;
-        match self.direction {
-            ChangeDirection::Abs => Ok(absolute),
-            ChangeDirection::Dec => {
-                let current = device
-                    .current()
-                    .map_err(AbsoluteBrightnessError::CurrentRead)?;
+        // Here instead of in the match arm to prevent unneeded reading of the `current` file
+        if self.direction == ChangeDirection::Abs {
+            return self.value.absolute_brightness(device, easing);
+        }
+
+        let current = device
+            .current()
+            .map_err(AbsoluteBrightnessError::CurrentRead)?;
+        let max = device.max().ok_or(AbsoluteBrightnessError::NoMax)?;
+
+        match (self.value, self.direction) {
+            (_, ChangeDirection::Abs) => unreachable!(),
+            (Value::Absolute(absolute), ChangeDirection::Inc) => {
+                Ok(current.saturating_add(absolute).min(max))
+            }
+            (Value::Absolute(absolute), ChangeDirection::Dec) => {
                 Ok(current.saturating_sub(absolute))
             }
-            ChangeDirection::Inc => {
-                let current = device
-                    .current()
-                    .map_err(AbsoluteBrightnessError::CurrentRead)?;
-                let max = device.max().ok_or(AbsoluteBrightnessError::NoMax)?;
-                Ok(current.saturating_add(absolute).min(max))
+            (Value::Percentage(p), direction @ (ChangeDirection::Inc | ChangeDirection::Dec)) => {
+                let actual = f64::from(current) / f64::from(max);
+                let user_facing = easing.from_actual(actual);
+                let current_perc = user_facing * 100.0;
+                let perc = match direction {
+                    ChangeDirection::Abs => unreachable!(),
+                    ChangeDirection::Inc => current_perc + p,
+                    ChangeDirection::Dec => current_perc - p,
+                };
+                Value::Percentage(perc.clamp(0.0, 100.0)).absolute_brightness(device, easing)
             }
         }
     }
@@ -136,19 +155,13 @@ impl TryFrom<String> for Value {
         }
 
         value
-            .parse::<u8>()
-            .map_err(|err| {
-                let s = match err.kind() {
-                    IntErrorKind::NegOverflow => "The value must be at least 0%",
-                    IntErrorKind::Empty | IntErrorKind::InvalidDigit => "Please provide a number",
-                    IntErrorKind::PosOverflow => "The value must not exceed 100%",
-                    _ => unreachable!("This is a bug, please create a GitHub issue to report it!"),
-                };
-                String::from(s)
-            })
+            .parse()
+            .map_err(|_| String::from("Please provide a number"))
             .and_then(|val| {
-                if val > 100 {
+                if val > 100.0 {
                     Err(String::from("The value must not exceed 100%"))
+                } else if val < 0.0 {
+                    Err(String::from("The value must be at least 0%"))
                 } else {
                     Ok(Self::Percentage(val))
                 }
@@ -180,19 +193,13 @@ impl FromStr for Value {
             None => return Err(String::from(EMPTY_ERR_MSG)),
         }
 
-        s.parse::<u8>()
-            .map_err(|err| {
-                let s = match err.kind() {
-                    IntErrorKind::NegOverflow => "The value must be at least 0%",
-                    IntErrorKind::Empty | IntErrorKind::InvalidDigit => "Please provide a number",
-                    IntErrorKind::PosOverflow => "The value must not exceed 100%",
-                    _ => unreachable!("This is a bug, please create a GitHub issue to report it!"),
-                };
-                String::from(s)
-            })
+        s.parse()
+            .map_err(|_| String::from("Please provide a number"))
             .and_then(|val| {
-                if val > 100 {
+                if val > 100.0 {
                     Err(String::from("The value must not exceed 100%"))
+                } else if val < 0.0 {
+                    Err(String::from("The value must be at least 0%"))
                 } else {
                     Ok(Self::Percentage(val))
                 }
@@ -235,7 +242,7 @@ mod tests {
             "42%+".try_into(),
             Ok(BrightnessChange {
                 direction: ChangeDirection::Inc,
-                value: Value::Percentage(42)
+                value: Value::Percentage(42.0)
             })
         );
         assert_eq!(

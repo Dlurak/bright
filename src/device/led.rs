@@ -1,4 +1,5 @@
 use crate::{
+    animation::easing::Easing,
     device::UNNAMED,
     fmt_option,
     meta::{Information, Meta},
@@ -80,10 +81,12 @@ impl Device for Led {
 }
 
 impl Meta for Led {
-    fn meta(&self) -> Vec<Information> {
+    fn meta(&self, easing: &dyn Easing) -> Vec<Information> {
         let cur = self.current().ok();
         let max = self.max;
-        let perc = cur.map(|cur| f64::from(cur) / f64::from(max) * 100.0);
+        let actual = cur.map(|cur| f64::from(cur) / f64::from(max));
+        let user_facing = actual.map(|ac| easing.from_actual(ac));
+        let perc = user_facing.map(|x| x * 100.0);
 
         vec![
             Information::new(

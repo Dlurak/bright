@@ -1,5 +1,5 @@
 use bright::{
-    animation::AnimationIter,
+    animation::{AnimationIter, easing::Easing},
     brightness::AbsoluteBrightness,
     cli::{Args, Command, SetArgs},
     device::{UNNAMED, all_devices, errors::DeviceWriteError, get_device},
@@ -7,18 +7,18 @@ use bright::{
     restoration::write_brightness,
 };
 use clap::Parser;
-use std::{fmt::Write, num::NonZero};
+use std::fmt::Write;
 
 fn main() {
-    let args = Args::parse();
+    let Args { easing, command } = Args::parse();
 
-    let result = match args.command {
+    let result = match command {
         Command::List => {
-            list_handler();
+            list_handler(easing);
             Ok(())
         }
-        Command::Meta { device } => meta_handler(device),
-        Command::Set(args) => set_handler(args),
+        Command::Meta { device } => meta_handler(device, easing),
+        Command::Set(args) => set_handler(args, easing),
     };
     if let Err(err) = result {
         eprintln!("{err}");
@@ -26,7 +26,7 @@ fn main() {
     }
 }
 
-fn list_handler() {
+fn list_handler(easing: impl Easing) {
     for (class, devices) in all_devices() {
         println!("\x1B[4m{class}\x1B[0m:"); // Underlined
         for device in devices {
@@ -44,8 +44,10 @@ fn list_handler() {
             }
 
             if let Some((cur, max)) = cur.zip(max) {
-                let percentage = (f64::from(cur) / f64::from(max)) * 100.0;
-                println!(" ({percentage}%)");
+                let actual = f64::from(cur) / f64::from(max);
+                let user_facing = easing.from_actual(actual);
+                let perc = user_facing * 100.0;
+                println!(" ({perc}%)");
             } else {
                 println!();
             }
@@ -53,17 +55,17 @@ fn list_handler() {
     }
 }
 
-fn meta_handler(device_name: Option<String>) -> Result<(), String> {
+fn meta_handler(device_name: Option<String>, easing: impl Easing) -> Result<(), String> {
     let device = get_device(device_name).map_err(|err| err.to_string())?;
 
-    for info in device.meta() {
+    for info in device.meta(&easing) {
         println!("{info}");
     }
 
     Ok(())
 }
 
-fn set_handler(args: SetArgs) -> Result<(), String> {
+fn set_handler(args: SetArgs, easing: impl Easing) -> Result<(), String> {
     let device = get_device(args.device.as_deref()).map_err(|err| err.to_string())?;
     let name = device.name().unwrap_or(UNNAMED);
 
@@ -81,16 +83,22 @@ fn set_handler(args: SetArgs) -> Result<(), String> {
         )
     }
 
-    let min = args.min.absolute_brightness(&*device).map_err(|err| {
-        format!("While tetermening the minimum brightness encountered an error: {err}")
-    })?;
-    let max = args.max.absolute_brightness(&*device).map_err(|err| {
-        format!("While determening the maximum brightness encountered an error: {err}")
-    })?;
+    let min = args
+        .min
+        .absolute_brightness(&*device, &easing)
+        .map_err(|err| {
+            format!("While tetermening the minimum brightness encountered an error: {err}")
+        })?;
+    let max = args
+        .max
+        .absolute_brightness(&*device, &easing)
+        .map_err(|err| {
+            format!("While determening the maximum brightness encountered an error: {err}")
+        })?;
 
     let original_brightness = args
         .brightness
-        .absolute_brightness(&*device)
+        .absolute_brightness(&*device, &easing)
         .map_err(|err| format!("While determening the brightness encountered an error: {err}"))?;
     let desired_brightness = original_brightness.clamp(min, max);
 
@@ -100,8 +108,7 @@ fn set_handler(args: SetArgs) -> Result<(), String> {
         println!("Desired brightness too high, applying maximum: {max}");
     }
 
-    let difference = i32::from(desired_brightness) - i32::from(prev_brightness);
-    let Some(difference) = NonZero::new(difference) else {
+    if i32::from(prev_brightness) == i32::from(desired_brightness) {
         println!("Already at the desired brightness of {desired_brightness}");
         return Ok(());
     };
@@ -110,9 +117,10 @@ fn set_handler(args: SetArgs) -> Result<(), String> {
 
     let mut last_applied = None;
     let animation_values = AnimationIter::new(
-        prev_brightness,
-        desired_brightness,
-        args.change_per_frame(difference)?,
+        (prev_brightness, desired_brightness),
+        max,
+        args.frames(),
+        easing,
     );
     for (brightness, is_last) in animation_values {
         match device.set(brightness) {

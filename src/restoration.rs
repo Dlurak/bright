@@ -1,4 +1,5 @@
 use crate::{
+    animation::easing::Easing,
     brightness::{AbsoluteBrightness, AbsoluteBrightnessError, BrightnessChange},
     device::UNNAMED,
 };
@@ -36,6 +37,7 @@ impl AbsoluteBrightness for Restore {
     fn absolute_brightness(
         &self,
         device: &dyn crate::device::Device<Number = Self::Number>,
+        _: &dyn Easing,
     ) -> Result<Self::Number, AbsoluteBrightnessError> {
         let path = device_restore_path(device.name().unwrap_or(UNNAMED));
         let value = read_to_string(&path).map_err(|err| {
@@ -56,10 +58,11 @@ impl AbsoluteBrightness for SetValue {
     fn absolute_brightness(
         &self,
         device: &dyn crate::device::Device<Number = Self::Number>,
+        easing: &dyn Easing,
     ) -> Result<Self::Number, AbsoluteBrightnessError> {
         match self {
-            Self::Restore => Restore.absolute_brightness(device),
-            Self::Brightness(brc) => brc.absolute_brightness(device),
+            Self::Restore => Restore.absolute_brightness(device, easing),
+            Self::Brightness(brc) => brc.absolute_brightness(device, easing),
         }
     }
 }

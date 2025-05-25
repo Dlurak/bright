@@ -6,7 +6,10 @@ use super::{
     errors::{DeviceReadError, DeviceWriteError},
     led::Led,
 };
-use crate::meta::{Information, Meta};
+use crate::{
+    animation::easing::Easing,
+    meta::{Information, Meta},
+};
 use std::{
     fs::{self, OpenOptions},
     io::{self, Write},
@@ -69,8 +72,9 @@ impl Device for Backlight {
 }
 
 impl Meta for Backlight {
-    fn meta(&self) -> Vec<Information> {
-        let mut list = self.led.meta();
+    // fn meta(&self, easing: Box<dyn Easing>) -> Vec<Information> {
+    fn meta(&self, easing: &dyn Easing) -> Vec<Information> {
+        let mut list = self.led.meta(easing);
         if let Ok(mode) = self.power_mode() {
             list.push(Information::new(
                 "Power mode".to_string(),
