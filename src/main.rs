@@ -119,7 +119,7 @@ fn set_handler(args: SetArgs, easing: impl Easing) -> Result<(), String> {
     let animation_values = AnimationIter::new(
         (prev_brightness, desired_brightness),
         max,
-        args.frames(),
+        args.frame_count(),
         easing,
     );
     for (brightness, is_last) in animation_values {
