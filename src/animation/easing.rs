@@ -3,7 +3,6 @@ use std::{
     num::ParseFloatError,
     str::FromStr,
 };
-
 use delegate::delegate;
 use thiserror::Error;
 
