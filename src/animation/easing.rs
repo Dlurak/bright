@@ -1,9 +1,9 @@
+use delegate::delegate;
 use std::{
     fmt::{Display, Write},
     num::ParseFloatError,
     str::FromStr,
 };
-use delegate::delegate;
 use thiserror::Error;
 
 pub trait Easing {
@@ -39,11 +39,13 @@ impl Exponential {
 
 impl Easing for Exponential {
     fn to_actual(&self, user_facing: f64) -> f64 {
-        self.base.powf(user_facing) - 1.0
+        // f(x) = (b^x - 1)/(b-1)
+        (self.base.powf(user_facing) - 1.0) / (self.base - 1.0)
     }
 
     fn from_actual(&self, actual: f64) -> f64 {
-        (actual + 1.0).log(self.base)
+        // f(x) = log_a(x + 1) / log_a(2)
+        (actual + 1.0).log(self.base) / (2.0f64).log(self.base)
     }
 }
 
@@ -197,5 +199,75 @@ impl FromStr for EasingKind {
         }
 
         s.parse::<Linear>().map(|_| Self::Linear)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn extremes(easing: impl Easing) -> (f64, f64) {
+        (easing.to_actual(0.0), easing.to_actual(1.0))
+    }
+
+    fn extremes_rev(easing: impl Easing) -> (f64, f64) {
+        (easing.from_actual(0.0), easing.from_actual(1.0))
+    }
+
+    /// All easing function need to go through (0|0) and (1|1)
+    const COORDINATES: (f64, f64) = (0.0, 1.0);
+
+    #[test]
+    fn test_points() {
+        assert_eq!(extremes(EasingKind::Linear), COORDINATES);
+
+        assert_eq!(
+            extremes(EasingKind::new_polynomial(1.0).unwrap()),
+            COORDINATES
+        );
+        assert_eq!(
+            extremes(EasingKind::new_polynomial(0.3).unwrap()),
+            COORDINATES
+        );
+        assert_eq!(
+            extremes(EasingKind::new_polynomial(1.3).unwrap()),
+            COORDINATES
+        );
+
+        assert_eq!(
+            extremes(EasingKind::new_exponential(0.5).unwrap()),
+            COORDINATES
+        );
+        assert_eq!(
+            extremes(EasingKind::new_exponential(3.0).unwrap()),
+            COORDINATES
+        );
+    }
+
+    #[test]
+    fn test_reverse_points() {
+        assert_eq!(extremes(EasingKind::Linear), COORDINATES);
+
+        assert_eq!(
+            extremes_rev(EasingKind::new_polynomial(1.0).unwrap()),
+            COORDINATES
+        );
+        assert_eq!(
+            extremes_rev(EasingKind::new_polynomial(0.3).unwrap()),
+            COORDINATES
+        );
+        assert_eq!(
+            extremes_rev(EasingKind::new_polynomial(1.3).unwrap()),
+            COORDINATES
+        );
+
+        assert_eq!(
+            extremes_rev(EasingKind::new_exponential(0.5).unwrap()),
+            COORDINATES
+        );
+        assert_eq!(
+            extremes_rev(EasingKind::new_exponential(3.0).unwrap()),
+            COORDINATES
+        );
     }
 }
