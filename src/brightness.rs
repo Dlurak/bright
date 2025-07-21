@@ -1,21 +1,19 @@
 use crate::{
     animation::easing::Easing,
-    device::{Device, errors::DeviceReadError},
+    device::{errors::DeviceReadError, Device},
 };
 use derive_more::Display;
-use num_traits::Unsigned;
 use std::{error, fmt, num::IntErrorKind, path::PathBuf, str::FromStr};
 use thiserror::Error;
 
 const EMPTY_ERR_MSG: &str = "Number must not be empty";
 
 pub trait AbsoluteBrightness {
-    type Number: Unsigned;
     fn absolute_brightness(
         &self,
-        device: &dyn Device<Number = Self::Number>,
+        device: &dyn Device,
         easing: &dyn Easing,
-    ) -> Result<Self::Number, AbsoluteBrightnessError>;
+    ) -> Result<u16, AbsoluteBrightnessError>;
 }
 
 #[derive(Debug, Error)]
@@ -73,12 +71,11 @@ pub enum ChangeDirection {
 }
 
 impl AbsoluteBrightness for Value {
-    type Number = u16;
     fn absolute_brightness(
         &self,
-        device: &dyn Device<Number = Self::Number>,
+        device: &dyn Device,
         easing: &dyn Easing,
-    ) -> Result<Self::Number, AbsoluteBrightnessError> {
+    ) -> Result<u16, AbsoluteBrightnessError> {
         match self {
             Self::Absolute(a) => Ok(*a),
             Self::Percentage(p) => {
@@ -92,12 +89,11 @@ impl AbsoluteBrightness for Value {
 }
 
 impl AbsoluteBrightness for BrightnessChange {
-    type Number = u16;
     fn absolute_brightness(
         &self,
-        device: &dyn Device<Number = Self::Number>,
+        device: &dyn Device,
         easing: &dyn Easing,
-    ) -> Result<Self::Number, AbsoluteBrightnessError> {
+    ) -> Result<u16, AbsoluteBrightnessError> {
         // Here instead of in the match arm to prevent unneeded reading of the `current` file
         if self.direction == ChangeDirection::Abs {
             return self.value.absolute_brightness(device, easing);
@@ -137,15 +133,19 @@ impl TryFrom<String> for Value {
     fn try_from(mut value: String) -> Result<Self, Self::Error> {
         match value.parse() {
             Ok(num) => return Ok(Self::Absolute(num)),
-            Err(err) => match err.kind() {
-                IntErrorKind::NegOverflow | IntErrorKind::PosOverflow => {
-                    return Err(format!(
-                        "Your provided width doesn't fit into the integer (0-{})",
-                        u16::MAX
-                    ));
-                }
-                _ => {}
-            },
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    IntErrorKind::NegOverflow | IntErrorKind::PosOverflow
+                ) =>
+            {
+                let err_msg = format!(
+                    "Your provided width doesn't fit into the integer (0-{})",
+                    u16::MAX
+                );
+                return Err(err_msg);
+            }
+            _ => {}
         }
 
         match value.pop() {
@@ -156,7 +156,7 @@ impl TryFrom<String> for Value {
 
         value
             .parse()
-            .map_err(|_| String::from("Please provide a number"))
+            .map_err(|_|  String::from("Please provide a number") )
             .and_then(|val| {
                 if val > 100.0 {
                     Err(String::from("The value must not exceed 100%"))

@@ -1,8 +1,7 @@
 use crate::meta::Meta;
 use derive_more::Display;
 use errors::DeviceNotFound;
-use num_traits::Unsigned;
-use std::{cmp, collections::BTreeMap, env, fmt, path::PathBuf};
+use std::{collections::BTreeMap, env, path::PathBuf};
 
 pub mod backlight;
 pub mod errors;
@@ -13,16 +12,14 @@ pub const BRIGHTNESS_FILES: [&str; 2] = ["brightness", "max_brightness"];
 pub const UNNAMED: &str = "unnamed";
 
 pub trait Device: Meta {
-    type Number: Unsigned + cmp::Ord + fmt::Display;
-
     fn name(&self) -> Option<&str>;
 
-    fn max(&self) -> Option<Self::Number>;
-    fn current(&self) -> Result<Self::Number, errors::DeviceReadError>;
+    fn max(&self) -> Option<u16>;
+    fn current(&self) -> Result<u16, errors::DeviceReadError>;
     fn set(
         &self,
-        value: Self::Number,
-    ) -> Result<Self::Number, errors::DeviceWriteError<Self::Number>>;
+        value: u16,
+    ) -> Result<u16, errors::DeviceWriteError<u16>>;
     fn path(&self) -> Option<PathBuf> {
         None
     }
@@ -45,13 +42,13 @@ impl DeviceClass {
     }
 }
 
-pub fn all_devices() -> BTreeMap<DeviceClass, Vec<Box<dyn Device<Number = u16>>>> {
+pub fn all_devices() -> BTreeMap<DeviceClass, Vec<Box<dyn Device>>> {
     let mut map = BTreeMap::new();
 
     if let Some(backlights) = backlight::find_backlights() {
         let mapped = backlights
             .into_iter()
-            .map(|bl| Box::new(bl) as Box<dyn Device<Number = u16>>)
+            .map(|bl| Box::new(bl) as Box<dyn Device>)
             .collect();
 
         map.insert(backlight::Backlight::CLASS, mapped);
@@ -59,7 +56,7 @@ pub fn all_devices() -> BTreeMap<DeviceClass, Vec<Box<dyn Device<Number = u16>>>
     if let Some(leds) = led::find_leds() {
         let mapped = leds
             .into_iter()
-            .map(|bl| Box::new(bl) as Box<dyn Device<Number = u16>>)
+            .map(|bl| Box::new(bl) as Box<dyn Device>)
             .collect();
 
         map.insert(led::Led::CLASS, mapped);
@@ -70,7 +67,7 @@ pub fn all_devices() -> BTreeMap<DeviceClass, Vec<Box<dyn Device<Number = u16>>>
 
 pub fn get_device<S: AsRef<str>>(
     dev: Option<S>,
-) -> Result<Box<dyn Device<Number = u16>>, DeviceNotFound> {
+) -> Result<Box<dyn Device>, DeviceNotFound> {
     let devices = all_devices();
 
     let dev = dev

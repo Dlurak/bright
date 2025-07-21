@@ -55,18 +55,17 @@ pub struct Backlight {
 }
 
 impl Device for Backlight {
-    type Number = u16;
 
     delegate::delegate! {
         to self.led {
             fn name(&self) -> Option<&str>;
-            fn max(&self) -> Option<Self::Number>;
-            fn set(&self, value: Self::Number) -> Result<Self::Number, DeviceWriteError<Self::Number>>;
+            fn max(&self) -> Option<u16>;
+            fn set(&self, value: u16) -> Result<u16, DeviceWriteError<u16>>;
             fn path(&self) -> Option<PathBuf>;
         }
     }
 
-    fn current(&self) -> Result<Self::Number, DeviceReadError> {
+    fn current(&self) -> Result<u16, DeviceReadError> {
         self.parse("actual_brightness")
     }
 }

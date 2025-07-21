@@ -38,17 +38,16 @@ pub struct Led {
 }
 
 impl Device for Led {
-    type Number = u16;
 
     fn name(&self) -> Option<&str> {
         self.dev_path.file_name()?.to_str()
     }
 
-    fn max(&self) -> Option<Self::Number> {
+    fn max(&self) -> Option<u16> {
         Some(self.max)
     }
 
-    fn current(&self) -> Result<Self::Number, DeviceReadError> {
+    fn current(&self) -> Result<u16, DeviceReadError> {
         let path = self.dev_path.join("brightness");
         fs::read_to_string(path)?
             .trim_end()
@@ -56,7 +55,7 @@ impl Device for Led {
             .map_err(DeviceReadError::from)
     }
 
-    fn set(&self, value: Self::Number) -> Result<Self::Number, DeviceWriteError<Self::Number>> {
+    fn set(&self, value: u16) -> Result<u16, DeviceWriteError<u16>> {
         if value > self.max {
             return Err(DeviceWriteError::Overflow {
                 max: self.max,

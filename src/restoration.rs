@@ -32,13 +32,12 @@ impl FromStr for SetValue {
 struct Restore;
 
 impl AbsoluteBrightness for Restore {
-    type Number = u16;
 
     fn absolute_brightness(
         &self,
-        device: &dyn crate::device::Device<Number = Self::Number>,
+        device: &dyn crate::device::Device,
         _: &dyn Easing,
-    ) -> Result<Self::Number, AbsoluteBrightnessError> {
+    ) -> Result<u16, AbsoluteBrightnessError> {
         let path = device_restore_path(device.name().unwrap_or(UNNAMED));
         let value = read_to_string(&path).map_err(|err| {
             if err.kind() == ErrorKind::NotFound {
@@ -54,12 +53,11 @@ impl AbsoluteBrightness for Restore {
 }
 
 impl AbsoluteBrightness for SetValue {
-    type Number = u16;
     fn absolute_brightness(
         &self,
-        device: &dyn crate::device::Device<Number = Self::Number>,
+        device: &dyn crate::device::Device,
         easing: &dyn Easing,
-    ) -> Result<Self::Number, AbsoluteBrightnessError> {
+    ) -> Result<u16, AbsoluteBrightnessError> {
         match self {
             Self::Restore => Restore.absolute_brightness(device, easing),
             Self::Brightness(brc) => brc.absolute_brightness(device, easing),
