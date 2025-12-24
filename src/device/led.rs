@@ -1,5 +1,6 @@
 use crate::{
     animation::easing::Easing,
+    config::Easings,
     device::UNNAMED,
     fmt_option,
     meta::{Information, Meta},
@@ -38,7 +39,6 @@ pub struct Led {
 }
 
 impl Device for Led {
-
     fn name(&self) -> Option<&str> {
         self.dev_path.file_name()?.to_str()
     }
@@ -80,7 +80,9 @@ impl Device for Led {
 }
 
 impl Meta for Led {
-    fn meta(&self, easing: &dyn Easing) -> Vec<Information> {
+    fn meta(&self, easings: &Easings) -> Vec<Information> {
+        let easing = easings.get_or_default(self.name());
+
         let cur = self.current().ok();
         let max = self.max;
         let actual = cur.map(|cur| f64::from(cur) / f64::from(max));

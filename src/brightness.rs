@@ -1,6 +1,6 @@
 use crate::{
     animation::easing::Easing,
-    device::{errors::DeviceReadError, Device},
+    device::{Device, errors::DeviceReadError},
 };
 use derive_more::Display;
 use std::{error, fmt, num::IntErrorKind, path::PathBuf, str::FromStr};
@@ -156,7 +156,7 @@ impl TryFrom<String> for Value {
 
         value
             .parse()
-            .map_err(|_|  String::from("Please provide a number") )
+            .map_err(|_| String::from("Please provide a number"))
             .and_then(|val| {
                 if val > 100.0 {
                     Err(String::from("The value must not exceed 100%"))

@@ -7,7 +7,7 @@ use super::{
     led::Led,
 };
 use crate::{
-    animation::easing::Easing,
+    config::Easings,
     meta::{Information, Meta},
 };
 use std::{
@@ -55,7 +55,6 @@ pub struct Backlight {
 }
 
 impl Device for Backlight {
-
     delegate::delegate! {
         to self.led {
             fn name(&self) -> Option<&str>;
@@ -71,9 +70,8 @@ impl Device for Backlight {
 }
 
 impl Meta for Backlight {
-    // fn meta(&self, easing: Box<dyn Easing>) -> Vec<Information> {
-    fn meta(&self, easing: &dyn Easing) -> Vec<Information> {
-        let mut list = self.led.meta(easing);
+    fn meta(&self, easings: &Easings) -> Vec<Information> {
+        let mut list = self.led.meta(easings);
         if let Ok(mode) = self.power_mode() {
             list.push(Information::new(
                 "Power mode".to_string(),

@@ -16,10 +16,7 @@ pub trait Device: Meta {
 
     fn max(&self) -> Option<u16>;
     fn current(&self) -> Result<u16, errors::DeviceReadError>;
-    fn set(
-        &self,
-        value: u16,
-    ) -> Result<u16, errors::DeviceWriteError<u16>>;
+    fn set(&self, value: u16) -> Result<u16, errors::DeviceWriteError<u16>>;
     fn path(&self) -> Option<PathBuf> {
         None
     }
@@ -65,9 +62,7 @@ pub fn all_devices() -> BTreeMap<DeviceClass, Vec<Box<dyn Device>>> {
     map
 }
 
-pub fn get_device<S: AsRef<str>>(
-    dev: Option<S>,
-) -> Result<Box<dyn Device>, DeviceNotFound> {
+pub fn get_device<S: AsRef<str>>(dev: Option<S>) -> Result<Box<dyn Device>, DeviceNotFound> {
     let devices = all_devices();
 
     let dev = dev

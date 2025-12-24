@@ -32,7 +32,6 @@ impl FromStr for SetValue {
 struct Restore;
 
 impl AbsoluteBrightness for Restore {
-
     fn absolute_brightness(
         &self,
         device: &dyn crate::device::Device,

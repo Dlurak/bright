@@ -26,7 +26,7 @@ pub enum EasingParseError {
     ),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct Exponential {
     base: f64,
 }
@@ -44,8 +44,8 @@ impl Easing for Exponential {
     }
 
     fn from_actual(&self, actual: f64) -> f64 {
-        // f(x) = log_a(x + 1) / log_a(2)
-        (actual + 1.0).log(self.base) / (2.0f64).log(self.base)
+        // f(x) = log_b(x (b-1) + 1)
+        actual.mul_add(self.base - 1.0, 1.0).log(self.base)
     }
 }
 
@@ -70,7 +70,7 @@ impl Display for Exponential {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct Polynomial {
     exponent: f64,
 }
@@ -141,7 +141,7 @@ impl FromStr for Linear {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum EasingKind {
     #[default]
     Linear,

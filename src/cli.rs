@@ -9,10 +9,9 @@ pub struct Args {
     /// The easing to map perceived brightness → actual device brightness
     #[arg(
         long,
-        default_value_t = EasingKind::default(),
         long_help = "The easing to use\nIt maps perceived brightness to the actual brightness, both input and output should be in the interval 0.0..=1.0\nValid inputs look like: `x^2.5` (polynomial), `3.141^x` (exponential) or simply `x` (linear)"
     )]
-    pub easing: EasingKind,
+    pub easing: Option<EasingKind>,
 }
 
 #[derive(Subcommand, Clone)]

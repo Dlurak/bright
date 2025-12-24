@@ -1,4 +1,4 @@
-use crate::animation::easing::Easing;
+use crate::config::Easings;
 use std::fmt::Display;
 
 pub struct Information {
@@ -29,5 +29,5 @@ impl Display for Information {
 }
 
 pub trait Meta {
-    fn meta(&self, easing: &dyn Easing) -> Vec<Information>;
+    fn meta(&self, easing: &Easings) -> Vec<Information>;
 }

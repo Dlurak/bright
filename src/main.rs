@@ -2,23 +2,65 @@ use bright::{
     animation::{AnimationIter, easing::Easing},
     brightness::AbsoluteBrightness,
     cli::{Args, Command, SetArgs},
+    config::{EasingFromFileError, Easings, MultilineEasingsParseError},
     device::{UNNAMED, all_devices, errors::DeviceWriteError, get_device},
     fmt_option,
     restoration::write_brightness,
 };
 use clap::Parser;
-use std::fmt::Write;
+use std::{fmt::Write, process};
+
+const UNDERLINE_FMT: &str = "\x1B[4m";
+const DEFAULT_FMT: &str = "\x1B[0m";
 
 fn main() {
     let Args { easing, command } = Args::parse();
 
+    let easings = easing
+        .map(Easings::from)
+        .or_else(|| match Easings::from_config() {
+            Ok(val) => val,
+            Err(err) => {
+                let msg = match err {
+                    EasingFromFileError::NoPath => {
+                        String::from("A path for the config file could not be determined")
+                    }
+                    EasingFromFileError::ParseError {
+                        path,
+                        error: MultilineEasingsParseError::ParseError { line_number, error },
+                    } => format!(
+                        "Can't parse easing in {}:{line_number}: {error}",
+                        path.display()
+                    ),
+                    EasingFromFileError::ParseError {
+                        path,
+                        error:
+                            MultilineEasingsParseError::DuplicateDevice {
+                                line_number,
+                                device,
+                            },
+                    } => format!(
+                        "Config file {} has duplicated device {device} at line {line_number}",
+                        path.display()
+                    ),
+                    EasingFromFileError::ReadFile(ref err) => {
+                        format!("Can't read config file: {err}")
+                    }
+                };
+
+                eprintln!("{msg}");
+                process::exit(1);
+            }
+        })
+        .unwrap_or_default();
+
     let result = match command {
         Command::List => {
-            list_handler(easing);
+            list_handler(easings);
             Ok(())
         }
-        Command::Meta { device } => meta_handler(device, easing),
-        Command::Set(args) => set_handler(args, easing),
+        Command::Meta { device } => meta_handler(device, easings),
+        Command::Set(args) => set_handler(args, easings),
     };
     if let Err(err) = result {
         eprintln!("{err}");
@@ -26,12 +68,14 @@ fn main() {
     }
 }
 
-fn list_handler(easing: impl Easing) {
+fn list_handler(easings: Easings) {
     for (class, devices) in all_devices() {
-        println!("\x1B[4m{class}\x1B[0m:"); // Underlined
+        println!("{UNDERLINE_FMT}{class}{DEFAULT_FMT}:"); // Underlined
         for device in devices {
             let cur = device.current().ok();
             let max = device.max();
+
+            let easing = easings.get_or_default(device.name());
 
             let name = device.name().unwrap_or(UNNAMED);
             print!("\t{name}");
@@ -55,19 +99,20 @@ fn list_handler(easing: impl Easing) {
     }
 }
 
-fn meta_handler(device_name: Option<String>, easing: impl Easing) -> Result<(), String> {
+fn meta_handler(device_name: Option<String>, easings: Easings) -> Result<(), String> {
     let device = get_device(device_name).map_err(|err| err.to_string())?;
 
-    for info in device.meta(&easing) {
+    for info in device.meta(&easings) {
         println!("{info}");
     }
 
     Ok(())
 }
 
-fn set_handler(args: SetArgs, easing: impl Easing) -> Result<(), String> {
+fn set_handler(args: SetArgs, easings: Easings) -> Result<(), String> {
     let device = get_device(args.device.as_deref()).map_err(|err| err.to_string())?;
     let name = device.name().unwrap_or(UNNAMED);
+    let easing = easings.get_or_default(device.name());
 
     println!("Updating device: '{name}'");
 
@@ -80,7 +125,7 @@ fn set_handler(args: SetArgs, easing: impl Easing) -> Result<(), String> {
         println!(
             "Wrote previous brightness of {prev_brightness} to {}",
             path.display()
-        )
+        );
     }
 
     let min = args
