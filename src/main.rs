@@ -1,11 +1,10 @@
 use bright::{
     animation::{AnimationIter, easing::Easing},
-    brightness::AbsoluteBrightness,
+    brightness::ast::functions::restoration::write_brightness,
     cli::{Args, Command, SetArgs},
     config::{EasingFromFileError, Easings, MultilineEasingsParseError},
     device::{UNNAMED, all_devices, errors::DeviceWriteError, get_device},
     fmt_option,
-    restoration::write_brightness,
 };
 use clap::Parser;
 use std::{fmt::Write, process};
@@ -70,7 +69,7 @@ fn main() {
 
 fn list_handler(easings: Easings) {
     for (class, devices) in all_devices() {
-        println!("{UNDERLINE_FMT}{class}{DEFAULT_FMT}:"); // Underlined
+        println!("{UNDERLINE_FMT}{class}{DEFAULT_FMT}:");
         for device in devices {
             let cur = device.current().ok();
             let max = device.max();
@@ -83,11 +82,11 @@ fn list_handler(easings: Easings) {
             if let Some(path) = device.path() {
                 print!(" {}", path.display());
             }
-            if cur.is_some() || max.is_some() {
-                print!(" {}/{}", fmt_option(cur, '?'), fmt_option(max, '?'));
+            if cur.is_some() {
+                print!(" {}/{max}", fmt_option(cur, '?'));
             }
 
-            if let Some((cur, max)) = cur.zip(max) {
+            if let Some(cur) = cur {
                 let actual = f64::from(cur) / f64::from(max);
                 let user_facing = easing.from_actual(actual);
                 let perc = user_facing * 100.0;
@@ -128,30 +127,10 @@ fn set_handler(args: SetArgs, easings: Easings) -> Result<(), String> {
         );
     }
 
-    let min = args
-        .min
-        .absolute_brightness(&*device, &easing)
-        .map_err(|err| {
-            format!("While tetermening the minimum brightness encountered an error: {err}")
-        })?;
-    let max = args
-        .max
-        .absolute_brightness(&*device, &easing)
-        .map_err(|err| {
-            format!("While determening the maximum brightness encountered an error: {err}")
-        })?;
-
-    let original_brightness = args
+    let desired_brightness = args
         .brightness
-        .absolute_brightness(&*device, &easing)
+        .evaluate(&*device, &easing)
         .map_err(|err| format!("While determening the brightness encountered an error: {err}"))?;
-    let desired_brightness = original_brightness.clamp(min, max);
-
-    if original_brightness < min {
-        println!("Desired brightness too low, applying minimum: {min}");
-    } else if original_brightness > max {
-        println!("Desired brightness too high, applying maximum: {max}");
-    }
 
     if i32::from(prev_brightness) == i32::from(desired_brightness) {
         println!("Already at the desired brightness of {desired_brightness}");
@@ -163,7 +142,7 @@ fn set_handler(args: SetArgs, easings: Easings) -> Result<(), String> {
     let mut last_applied = None;
     let animation_values = AnimationIter::new(
         (prev_brightness, desired_brightness),
-        max,
+        device.max(),
         args.frame_count(),
         easing,
     );

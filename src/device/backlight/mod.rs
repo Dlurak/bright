@@ -58,7 +58,7 @@ impl Device for Backlight {
     delegate::delegate! {
         to self.led {
             fn name(&self) -> Option<&str>;
-            fn max(&self) -> Option<u16>;
+            fn max(&self) -> u16;
             fn set(&self, value: u16) -> Result<u16, DeviceWriteError<u16>>;
             fn path(&self) -> Option<PathBuf>;
         }

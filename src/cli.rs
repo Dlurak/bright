@@ -1,4 +1,4 @@
-use crate::{animation::easing::EasingKind, brightness::Value};
+use crate::{animation::easing::EasingKind, brightness::ast};
 use clap::{Parser, Subcommand, value_parser};
 use std::{num::NonZero, time::Duration};
 
@@ -39,7 +39,7 @@ pub struct SetArgs {
     #[arg(
         long_help = "The new brightness to apply\nUsing the value `restore` you can restore the last saved brightness\nBoth absolute values and percentages are accepted, which both can be followed by an optional `+` or `-` to increase/decrease"
     )]
-    pub brightness: crate::restoration::SetValue,
+    pub brightness: ast::Ast,
     /// Choose a device by name
     #[arg(
         long,
@@ -57,12 +57,6 @@ pub struct SetArgs {
         value_parser = value_parser!(u16).range(1..=1000)
     )]
     pub fps: u16,
-    /// The minimum value which can be set, both absolute values and percentages are available
-    #[arg(long, default_value_t = Value::Absolute(0))]
-    pub min: Value,
-    /// The maximum value which can be set, both absolute values and percentages are available
-    #[arg(long, default_value_t = Value::Percentage(100.0))]
-    pub max: Value,
     /// Whether to save the new value to a temporary file so it can be restored later on
     #[arg(long, default_value_t = false)]
     pub save: bool,

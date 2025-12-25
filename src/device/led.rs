@@ -43,8 +43,8 @@ impl Device for Led {
         self.dev_path.file_name()?.to_str()
     }
 
-    fn max(&self) -> Option<u16> {
-        Some(self.max)
+    fn max(&self) -> u16 {
+        self.max
     }
 
     fn current(&self) -> Result<u16, DeviceReadError> {

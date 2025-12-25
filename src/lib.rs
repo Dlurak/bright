@@ -6,7 +6,6 @@ pub mod cli;
 pub mod config;
 pub mod device;
 pub mod meta;
-pub mod restoration;
 
 pub fn fmt_option<O, D>(opt: Option<O>, default: D) -> String
 where

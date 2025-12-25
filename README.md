@@ -14,6 +14,10 @@ Backlight (and LED) control for linux.
     - Percentages
     - Changes (`5%+`, `500-`)
     - `restore`
+    - Fancy functions
+        - `max(50%, 10%+, 200)`
+        - `clamp(1, 5%+, 75%)`
+        - Some more
 - Saving and restoring the brightness
     - Save the devices brightness before changing it
     - Restore it using `restore`

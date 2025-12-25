@@ -14,7 +14,7 @@ pub const UNNAMED: &str = "unnamed";
 pub trait Device: Meta {
     fn name(&self) -> Option<&str>;
 
-    fn max(&self) -> Option<u16>;
+    fn max(&self) -> u16;
     fn current(&self) -> Result<u16, errors::DeviceReadError>;
     fn set(&self, value: u16) -> Result<u16, errors::DeviceWriteError<u16>>;
     fn path(&self) -> Option<PathBuf> {
