@@ -1,10 +1,16 @@
-use bright::{
+mod animation;
+mod brightness;
+mod cli;
+mod config;
+mod device;
+mod meta;
+
+use crate::{
     animation::{AnimationIter, easing::Easing},
     brightness::ast::functions::restoration::write_brightness,
     cli::{Args, Command, SetArgs},
     config::{EasingFromFileError, Easings, MultilineEasingsParseError},
     device::{UNNAMED, all_devices, errors::DeviceWriteError, get_device},
-    fmt_option,
 };
 use clap::Parser;
 use std::{fmt::Write, process};
@@ -82,9 +88,11 @@ fn list_handler(easings: Easings) {
             if let Some(path) = device.path() {
                 print!(" {}", path.display());
             }
-            if cur.is_some() {
-                print!(" {}/{max}", fmt_option(cur, '?'));
-            }
+
+            print!(
+                " {}/{max}",
+                cur.map_or_else(|| String::from('?'), |n| n.to_string())
+            );
 
             if let Some(cur) = cur {
                 let actual = f64::from(cur) / f64::from(max);
@@ -110,14 +118,20 @@ fn meta_handler(device_name: Option<String>, easings: Easings) -> Result<(), Str
 
 fn set_handler(args: SetArgs, easings: Easings) -> Result<(), String> {
     let device = get_device(args.device.as_deref()).map_err(|err| err.to_string())?;
-    let name = device.name().unwrap_or(UNNAMED);
-    let easing = easings.get_or_default(device.name());
+    let name = device.name();
+    let easing = easings.get_or_default(name);
+    let name = name.unwrap_or(UNNAMED);
 
     println!("Updating device: '{name}'");
 
     let prev_brightness = device
         .current()
         .map_err(|err| format!("Reading current brightness: {err}"))?;
+
+    let desired_brightness = args
+        .brightness
+        .evaluate(&*device, &easing)
+        .map_err(|err| format!("While determening the brightness encountered an error: {err}"))?;
 
     if args.save {
         let path = write_brightness(name, prev_brightness).map_err(|err| err.to_string())?;
@@ -126,11 +140,6 @@ fn set_handler(args: SetArgs, easings: Easings) -> Result<(), String> {
             path.display()
         );
     }
-
-    let desired_brightness = args
-        .brightness
-        .evaluate(&*device, &easing)
-        .map_err(|err| format!("While determening the brightness encountered an error: {err}"))?;
 
     if i32::from(prev_brightness) == i32::from(desired_brightness) {
         println!("Already at the desired brightness of {desired_brightness}");

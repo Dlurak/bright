@@ -7,6 +7,7 @@ pub struct ArgumentCount {
 }
 
 impl ArgumentCount {
+    #[inline]
     pub fn valid(&self, count: usize) -> bool {
         count >= self.min && self.max.is_none_or(|m| count <= m)
     }

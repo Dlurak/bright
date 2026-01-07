@@ -149,12 +149,13 @@ pub enum EasingKind {
     Polynomial(Polynomial),
 }
 
+#[cfg(test)]
 impl EasingKind {
-    pub fn new_exponential(base: f64) -> Option<Self> {
+    fn new_exponential(base: f64) -> Option<Self> {
         Exponential::try_new(base).map(Self::Exponential)
     }
 
-    pub fn new_polynomial(exponent: f64) -> Option<Self> {
+    fn new_polynomial(exponent: f64) -> Option<Self> {
         Polynomial::try_new(exponent).map(Self::Polynomial)
     }
 }

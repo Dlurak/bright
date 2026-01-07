@@ -2,7 +2,6 @@ use crate::{
     animation::easing::Easing,
     config::Easings,
     device::UNNAMED,
-    fmt_option,
     meta::{Information, Meta},
 };
 
@@ -97,7 +96,7 @@ impl Meta for Led {
             ),
             Information::new(
                 "Current brightness".to_string(),
-                fmt_option(cur, '?'),
+                cur.map_or_else(|| String::from('?'), |n| n.to_string()),
                 perc.map(|p| format!("{p}%")),
             ),
             Information::new("Max brightness".to_string(), max.to_string(), None),

@@ -387,8 +387,37 @@ mod tests {
                 .unwrap(),
             900
         );
+    }
 
-        // TODO: Test for errors
+    #[test]
+    fn test_ast_fail() {
+        let dev = TestDevice {
+            max: 1_000,
+            current: 800,
+        };
+        assert!(
+            "clamp"
+                .parse::<Ast>()
+                .unwrap()
+                .evaluate(&dev, &EasingKind::Linear)
+                .is_err()
+        );
+
+        assert!(
+            "never_existing"
+                .parse::<Ast>()
+                .unwrap()
+                .evaluate(&dev, &EasingKind::Linear)
+                .is_err()
+        );
+
+        assert!(
+            "current(20)"
+                .parse::<Ast>()
+                .unwrap()
+                .evaluate(&dev, &EasingKind::Linear)
+                .is_err()
+        );
     }
 
     #[test]
